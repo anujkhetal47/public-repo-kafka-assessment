@@ -1,9 +1,3 @@
-# Preserve the existing live topic while moving it back to the simple resource address.
-moved {
-  from = confluent_kafka_topic.onboarded["orders_v1"]
-  to   = confluent_kafka_topic.orders_v1
-}
-
 resource "confluent_kafka_topic" "orders_v1" {
   kafka_cluster {
     id = confluent_kafka_cluster.orders.id
@@ -25,5 +19,6 @@ resource "confluent_kafka_topic" "orders_v1" {
     "min.insync.replicas" = "2"
   }
 
+  # replication.factor = 3: Confluent Cloud Basic clusters use three replicas.
   depends_on = [confluent_api_key.topic_manager_kafka]
 }
