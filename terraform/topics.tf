@@ -1,7 +1,7 @@
-# Preserve the existing live topic while moving it to the map-based address.
+# Preserve the existing live topic while moving it back to the simple resource address.
 moved {
-  from = confluent_kafka_topic.orders_v1
-  to   = confluent_kafka_topic.onboarded["orders_v1"]
+  from = confluent_kafka_topic.onboarded["orders_v1"]
+  to   = confluent_kafka_topic.orders_v1
 }
 
 resource "confluent_kafka_topic" "orders_v1" {
