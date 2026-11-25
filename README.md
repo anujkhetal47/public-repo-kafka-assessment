@@ -49,6 +49,11 @@ ansible-playbook -i inventory.ini site.yml --check --diff
 
 The play uses `serial: 1`, checks under-replicated partitions before and after each restart, and restarts only when the configuration changes.
 
+## Assessment write-ups
+
+- Detailed answers for Sections 1.1–1.5: [`answers.md`](answers.md)
+- Deferred scope and AI usage: [`NOTES.md`](NOTES.md)
+
 ## Security
 
 Real `*.tfvars` files and Terraform state are gitignored. Do not commit credentials or generated API secrets.
