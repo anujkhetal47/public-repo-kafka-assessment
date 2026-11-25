@@ -1,9 +1,17 @@
 ---
+# Set the Kafka replica-fetcher value that the role will enforce.
 num_replica_fetchers: 4
+# Define the broker configuration file to update.
 kafka_server_properties: /opt/kafka/config/server.properties
+# Define the systemd service name used for a broker restart.
 kafka_service_name: kafka
+# Locate the Kafka topic administration executable.
 kafka_topics_bin: /opt/kafka/bin/kafka-topics.sh
+# Provide the bootstrap endpoints used for pre- and post-roll URP checks.
 kafka_bootstrap_servers: localhost:9092
+# Define the broker listener port used after restart verification.
 kafka_broker_port: 9092
+# Set the maximum listener wait time after each restart.
 kafka_client_command_timeout: 30
+# Allow optional Kafka CLI authentication arguments for secured clusters.
 kafka_topics_extra_args: []

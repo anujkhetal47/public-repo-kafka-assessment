@@ -1,8 +1,10 @@
 ---
+# Build the exact setting value from the template before updating server.properties.
 - name: Render the desired server.properties setting
   ansible.builtin.set_fact:
     desired_num_replica_fetchers: "{{ lookup('template', 'server.properties.j2') | trim }}"
 
+# Change only num.replica.fetchers and register whether the file changed.
 - name: Update num.replica.fetchers in server.properties
   ansible.builtin.lineinfile:
     path: "{{ kafka_server_properties }}"
@@ -12,6 +14,7 @@
     backup: true
   register: broker_config
 
+# Inspect under-replicated partitions before restarting any broker.
 - name: Check under-replicated partitions before restart
   ansible.builtin.command:
     argv: "{{ [kafka_topics_bin, '--bootstrap-server', kafka_bootstrap_servers, '--describe', '--under-replicated-partitions'] + kafka_topics_extra_args }}"
@@ -19,6 +22,7 @@
   changed_when: false
   when: broker_config.changed
 
+# Stop the rollout if the cluster is already unhealthy or the URP command fails.
 - name: Fail when under-replicated partitions are present
   ansible.builtin.assert:
     that:
@@ -27,12 +31,14 @@
     fail_msg: "Unsafe restart: under-replicated partitions are not zero."
   when: broker_config.changed
 
+# Restart this broker only when Ansible detects a configuration change.
 - name: Restart broker only after configuration changed
   ansible.builtin.systemd:
     name: "{{ kafka_service_name }}"
     state: restarted
   when: broker_config.changed
 
+# Wait until the restarted broker listens on its Kafka port.
 - name: Wait for broker listener after restart
   ansible.builtin.wait_for:
     host: "{{ inventory_hostname }}"
@@ -40,6 +46,7 @@
     timeout: "{{ kafka_client_command_timeout }}"
   when: broker_config.changed
 
+# Recheck under-replicated partitions after the broker restarts.
 - name: Verify under-replicated partitions after restart
   ansible.builtin.command:
     argv: "{{ [kafka_topics_bin, '--bootstrap-server', kafka_bootstrap_servers, '--describe', '--under-replicated-partitions'] + kafka_topics_extra_args }}"
@@ -47,6 +54,7 @@
   changed_when: false
   when: broker_config.changed
 
+# Fail if replication has not recovered after the broker restarts.
 - name: Fail if replication is unhealthy after restart
   ansible.builtin.assert:
     that:

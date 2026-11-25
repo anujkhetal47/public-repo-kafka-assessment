@@ -1,4 +1,5 @@
 ---
+# Serialize the broker rollout so only one Kafka broker is processed per batch.
 - name: Roll Kafka broker configuration safely
   hosts: kafka_brokers
   become: true
