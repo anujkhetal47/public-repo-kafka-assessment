@@ -2,6 +2,16 @@
 
 ## 1.1 Durability basics
 
+```mermaid
+flowchart LR
+    P[Producer] -->|acks=all| L[Partition leader]
+    L -->|replicate| F1[Follower 1]
+    L -->|replicate| F2[Follower 2]
+    F1 -->|ACK| L
+    F2 -->|ACK| L
+    L -->|ACK to producer| P
+```
+
 - `acks=all` waits until all in-sync replicas acknowledge the write, not every configured replica. The acknowledgment is sent after the leader and the current ISR followers—including the required minimum—commit the record locally.
 - If one broker holding a replica goes offline, the ISR shrinks (for example, to two replicas). A producer using `acks=all` can still succeed if the remaining replicas satisfy `min.insync.replicas=2`.
 - If two brokers go offline, a replica factor of 3 leaves only the leader or one follower. With `min.insync.replicas=2`, writes are rejected with `NOT_ENOUGH_REPLICAS`; reads remain available until the cluster cannot serve the remaining replicas safely.
@@ -9,14 +19,15 @@
 
 ## 1.2 Confluent Cloud on GCP — Private Service Connect
 
-```text
-GCE client VPC
-  -> Cloud DNS resolver in attached VPC
-  -> PSC private endpoint IP
-  -> Private Service Connect forwarding endpoint
-  -> Confluent Cloud Dedicated cluster in us-central1
-  -> bootstrap endpoint selects broker addresses
-  -> client opens direct broker connections to advertised broker IPs
+```mermaid
+flowchart LR
+    GCE[GCE client in application VPC] --> DNS[Cloud DNS private zone]
+    DNS --> PSCIP[PSC endpoint IP]
+    PSCIP --> PSC[Private Service Connect forwarding rule]
+    PSC --> BOOT[Confluent Kafka bootstrap]
+    BOOT --> B1[Broker 1]
+    BOOT --> B2[Broker 2]
+    BOOT --> B3[Broker 3]
 ```
 
 - Resolution uses the private DNS domain shown in Confluent Networking details, commonly a cluster domain such as `abcdef.us-central1.gcp.confluent.cloud`; with private DNS resolution, GLB endpoints are not used. The private zone must be attached to the GCE application VPC that needs the cluster endpoints.
@@ -39,6 +50,15 @@ jstat -gcutil -h20 $(pgrep -n -f 'kafka\.Kafka') 1000 20
 This reports recent heap usage and GC percentage; also inspect `sudo journalctl -u kafka --since "15 minutes ago" | grep -iE 'pause|gc'` or the JVM GC log.
 
 ## 1.4 Ansible change gone wrong
+
+```mermaid
+flowchart TD
+    A[Stop remaining rolling changes] --> B[Check brokers and URP]
+    B --> C[Recover/start unhealthy brokers]
+    C --> D[Verify URP = 0]
+    D --> E[Rollback or reapply known-good config]
+    E --> F[Restart serial 1 with pre/post checks]
+```
 
 - `serial: 3` restarts three brokers simultaneously, potentially losing quorum/ISR capacity on many partitions. A six-broker cluster is especially exposed where replicas for a partition may be concentrated among restarted brokers. It also turns the play from a rolling rollout into a partial multi-broker outage.
 - Safety checks should include: broker health/listener readiness; zero under-replicated partitions before and after each restart; and sufficient ISR/broker availability for the restarted broker. A post-restart retry/health wait should also gate the next broker.
