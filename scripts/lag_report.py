@@ -20,8 +20,7 @@ def parse_args():
     args = parser.parse_args()
 
     missing = [name for name, value in (
-        ("bootstrap", args.bootstrap), ("api-key", args.api_key),
-        ("api-secret", args.api_secret),) if not value]
+        ("bootstrap", args.bootstrap), ("api-key", args.api_key), ("api-secret", args.api_secret)) if not value]
     if missing:
         parser.error("missing required inputs: " + ", ".join(missing))
     return args
@@ -33,11 +32,20 @@ def retry(operation):
     for attempt in range(3):
         try:
             return operation()
-        except (KafkaException, TimeoutError, OSError):
-            if attempt == 2:
+        except (KafkaException, TimeoutError, OSError) as error:
+            if auth_or_authorization_error(error) or attempt == 2:
                 raise
             time.sleep(delay)
             delay *= 2
+
+
+# Classify credential failures separately from broker connectivity failures.
+def auth_or_authorization_error(error):
+    text = f"{error} {error!r}".upper()
+    return any(word in text for word in (
+        "AUTHENTICATION", "AUTHORIZATION", "NOT AUTHORIZED",
+        "INVALID CREDENTIALS", "TOPIC AUTHORIZATION FAILED"
+    ))
 
 
 # Verify that the requested consumer group exists before reading offsets.
@@ -67,13 +75,8 @@ def build_report(admin, args, config):
                 TopicPartition(item.topic, item.partition), timeout=10)
             current = item.offset if item.offset >= 0 else None
             lag = max(log_end - current, 0) if current is not None else log_end
-            report.append({
-                "topic": item.topic,
-                "partition": item.partition,
-                "current_offset": current,
-                "log_end_offset": log_end,
-                "lag": lag,
-            })
+            report.append({"topic": item.topic, "partition": item.partition,
+                           "current_offset": current, "log_end_offset": log_end, "lag": lag})
     finally:
         consumer.close()
     return report
@@ -82,22 +85,19 @@ def build_report(admin, args, config):
 # Configure authenticated Kafka access and execute all guarded operations.
 def main():
     args = parse_args()
-    config = {
-        "bootstrap.servers": args.bootstrap,
-        "security.protocol": "SASL_SSL",
-        "sasl.mechanism": "PLAIN",
-        "sasl.username": args.api_key,
-        "sasl.password": args.api_secret,
-        "socket.timeout.ms": "10000",
-        "log_level": 0,
-        "client.id": "lag-report",
-    }
+    config = {"bootstrap.servers": args.bootstrap, "security.protocol": "SASL_SSL",
+              "sasl.mechanism": "PLAIN", "sasl.username": args.api_key,
+              "sasl.password": args.api_secret, "socket.timeout.ms": "10000",
+              "log_level": 0, "client.id": "lag-report"}
     admin = AdminClient(config)
 
     try:
         exists = retry(lambda: group_exists(admin, args.group))
     except Exception as error:
-        print(f"Broker unreachable: {error}", file=sys.stderr)
+        if auth_or_authorization_error(error):
+            print(f"Kafka authentication or authorization error: {error}", file=sys.stderr)
+        else:
+            print(f"Broker unreachable: {error}", file=sys.stderr)
         return 1
 
     if not exists:
@@ -107,14 +107,15 @@ def main():
     try:
         report = retry(lambda: build_report(admin, args, config))
     except Exception as error:
-        print(f"Broker unreachable: {error}", file=sys.stderr)
+        if auth_or_authorization_error(error):
+            print(f"Kafka authentication or authorization error: {error}", file=sys.stderr)
+        else:
+            print(f"Broker unreachable: {error}", file=sys.stderr)
         return 1
 
     report.sort(key=lambda row: (row["topic"], row["partition"]))
     print(json.dumps(report))
     return 0
 
-
-# Run the script and translate the returned status into a process exit code.
 if __name__ == "__main__":
     sys.exit(main())

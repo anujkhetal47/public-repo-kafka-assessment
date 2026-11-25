@@ -21,6 +21,7 @@
   register: urp_before
   changed_when: false
   when: broker_config.changed
+  check_mode: false
 
 # Stop the rollout if the cluster is already unhealthy or the URP command fails.
 - name: Fail when under-replicated partitions are present
@@ -36,7 +37,7 @@
   ansible.builtin.systemd:
     name: "{{ kafka_service_name }}"
     state: restarted
-  when: broker_config.changed
+  when: broker_config.changed and not ansible_check_mode
 
 # Wait until the restarted broker listens on its Kafka port.
 - name: Wait for broker listener after restart
@@ -44,7 +45,7 @@
     host: "{{ inventory_hostname }}"
     port: "{{ kafka_broker_port }}"
     timeout: "{{ kafka_client_command_timeout }}"
-  when: broker_config.changed
+  when: broker_config.changed and not ansible_check_mode
 
 # Recheck under-replicated partitions after the broker restarts.
 - name: Verify under-replicated partitions after restart
@@ -52,7 +53,8 @@
     argv: "{{ [kafka_topics_bin, '--bootstrap-server', kafka_bootstrap_servers, '--describe', '--under-replicated-partitions'] + kafka_topics_extra_args }}"
   register: urp_after
   changed_when: false
-  when: broker_config.changed
+  when: broker_config.changed and not ansible_check_mode
+  check_mode: false
 
 # Fail if replication has not recovered after the broker restarts.
 - name: Fail if replication is unhealthy after restart
@@ -61,4 +63,4 @@
       - urp_after.rc == 0
       - urp_after.stdout_lines | select('match', '^Topic:') | list | length == 0
     fail_msg: "Broker restarted but under-replicated partitions remain."
-  when: broker_config.changed
+  when: broker_config.changed and not ansible_check_mode

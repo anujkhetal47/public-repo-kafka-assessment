@@ -19,6 +19,6 @@ resource "confluent_kafka_topic" "orders_v1" {
     "min.insync.replicas" = "2"
   }
 
-  # replication.factor = 3: Confluent Cloud Basic clusters use three replicas.
+  # replication.factor = var.replication_factor (3): Confluent Cloud Basic clusters use three replicas.
   depends_on = [confluent_api_key.topic_manager_kafka]
 }

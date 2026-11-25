@@ -27,3 +27,14 @@ variable "environment_name" {
   type        = string
   default     = "banking-orders-assessment"
 }
+
+variable "replication_factor" {
+  description = "Replication factor for a Confluent Cloud Basic cluster topic"
+  type        = number
+  default     = 3
+
+  validation {
+    condition     = var.replication_factor == 3
+    error_message = "Confluent Cloud Basic clusters use a replication factor of 3."
+  }
+}

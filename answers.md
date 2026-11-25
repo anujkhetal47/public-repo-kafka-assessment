@@ -19,8 +19,8 @@ GCE client VPC
   -> client opens direct broker connections to advertised broker IPs
 ```
 
-- Resolution uses private DNS records under Confluent's GCP private DNS namespace, commonly `glb.<region>.gcp.confluent.cloud` with the cluster-generated private endpoints (for example, `*.glb.us-central1.gcp.confluent.cloud`). The corresponding private zone must be created and attached to the GCE application VPC.
-- A common misconfiguration is attaching the private zone to the wrong/shared VPC or forgetting to attach it to GCE client VPC peered networks. Detect it with `gcloud dns record-sets list --zone=<zone>`, `dig +short <bootstrap-endpoint>`, and the GCE client's `dig` output: both should return private PSC endpoint IPs that match the forwarding rules.
+- Resolution uses the private DNS domain shown in Confluent Networking details, commonly a cluster domain such as `abcdef.us-central1.gcp.confluent.cloud`; with private DNS resolution, GLB endpoints are not used. The private zone must be attached to the GCE application VPC that needs the cluster endpoints.
+- A common misconfiguration is omitting an availability zone, attaching the private zone to the wrong VPC, or using public DNS when private DNS was selected. Detect it with `dig +short <bootstrap-endpoint>`, `gcloud dns policies list`, and `gcloud dns managed-zones describe <zone>`; responses should resolve to the VPC's PSC endpoint IPs and all required zonal records must match the forwarding rules.
 - Also verify firewall rules permit 443 and 9092, the PSC endpoint IP and forwarding rule exist, and `/etc/resolv.conf` or private DNS policy can resolve the private hostname rather than a public address.
 
 ## 1.3 Producer latency triage
