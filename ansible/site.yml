@@ -1,0 +1,9 @@
+---
+- name: Roll Kafka broker configuration safely
+  hosts: kafka_brokers
+  become: true
+  serial: 1
+  gather_facts: true
+
+  roles:
+    - role: rolling_server_properties

@@ -38,6 +38,17 @@ python scripts/lag_report.py --group your-consumer-group
 
 The script prints a JSON array with topic, partition, committed offset, log-end offset, and lag. Exit code `2` means the consumer group does not exist; exit code `1` means the broker remained unreachable after three attempts.
 
+## Ansible rolling broker change
+
+The `ansible/` directory contains a small role that safely changes `num.replica.fetchers` on Kafka brokers:
+
+```powershell
+cd ansible
+ansible-playbook -i inventory.ini site.yml --check --diff
+```
+
+The play uses `serial: 1`, checks under-replicated partitions before and after each restart, and restarts only when the configuration changes.
+
 ## Security
 
 Real `*.tfvars` files and Terraform state are gitignored. Do not commit credentials or generated API secrets.

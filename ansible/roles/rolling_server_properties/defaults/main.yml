@@ -1,0 +1,9 @@
+---
+num_replica_fetchers: 4
+kafka_server_properties: /opt/kafka/config/server.properties
+kafka_service_name: kafka
+kafka_topics_bin: /opt/kafka/bin/kafka-topics.sh
+kafka_bootstrap_servers: localhost:9092
+kafka_broker_port: 9092
+kafka_client_command_timeout: 30
+kafka_topics_extra_args: []
