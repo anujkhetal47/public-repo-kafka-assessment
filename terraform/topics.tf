@@ -4,29 +4,26 @@ moved {
   to   = confluent_kafka_topic.onboarded["orders_v1"]
 }
 
-resource "confluent_kafka_topic" "onboarded" {
-  for_each = var.kafka_topics
-
+resource "confluent_kafka_topic" "orders_v1" {
   kafka_cluster {
-    id = confluent_kafka_cluster.onboarded[each.value.cluster_key].id
+    id = confluent_kafka_cluster.orders.id
   }
 
-  topic_name = each.value.name
+  topic_name = "orders.v1"
 
-  # Each topic's partition count is explicitly supplied by its self-service request.
-  partitions_count = each.value.partitions
+  # Six partitions provide parallelism across independent order workloads.
+  partitions_count = 6
 
-  rest_endpoint = confluent_kafka_cluster.onboarded[each.value.cluster_key].rest_endpoint
+  rest_endpoint = confluent_kafka_cluster.orders.rest_endpoint
   credentials {
-    key    = confluent_api_key.topic_manager_kafka[each.value.cluster_key].id
-    secret = confluent_api_key.topic_manager_kafka[each.value.cluster_key].secret
+    key    = confluent_api_key.topic_manager_kafka.id
+    secret = confluent_api_key.topic_manager_kafka.secret
   }
 
   config = {
-    # min.insync.replicas protects against acknowledging writes when too few replicas are synchronized.
-    "min.insync.replicas" = tostring(each.value.min_insync_replicas)
+    # Two replicas must acknowledge writes for durable, available writes.
+    "min.insync.replicas" = "2"
   }
 
-  # replication.factor = 3: Basic clusters use three replicas and the provider manages this at cluster level.
   depends_on = [confluent_api_key.topic_manager_kafka]
 }
