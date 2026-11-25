@@ -4,3 +4,5 @@
 crash.log
 *.tfvars
 !terraform.tfvars.example
+__pycache__/
+*.py[cod]

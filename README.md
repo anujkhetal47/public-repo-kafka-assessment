@@ -24,6 +24,20 @@ terraform apply
 
 Credentials can also be supplied through `CONFLUENT_CLOUD_API_KEY` and `CONFLUENT_CLOUD_API_SECRET`.
 
+## Consumer lag report
+
+Install dependencies and run the lag report without placing credentials in command history:
+
+```powershell
+python -m pip install -r requirements.txt
+$env:KAFKA_BOOTSTRAP_SERVERS = "pkc-example.us-east-2.aws.confluent.cloud:9092"
+$env:KAFKA_API_KEY = "your-api-key"
+$env:KAFKA_API_SECRET = "your-api-secret"
+python scripts/lag_report.py --group your-consumer-group
+```
+
+The script prints a JSON array with topic, partition, committed offset, log-end offset, and lag. Exit code `2` means the consumer group does not exist; exit code `1` means the broker remained unreachable after three attempts.
+
 ## Security
 
 Real `*.tfvars` files and Terraform state are gitignored. Do not commit credentials or generated API secrets.
