@@ -93,6 +93,7 @@ resource "confluent_api_key" "orders_producer_kafka" {
   }
 }
 
+# Least privilege: allow WRITE only on the literal orders.v1 topic; no READ or cluster-admin ACL.
 resource "confluent_kafka_acl" "orders_producer_write" {
   kafka_cluster {
     id = confluent_kafka_cluster.orders.id

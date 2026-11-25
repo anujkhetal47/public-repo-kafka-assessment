@@ -57,3 +57,17 @@ The play uses `serial: 1`, checks under-replicated partitions before and after e
 ## Security
 
 Real `*.tfvars` files and Terraform state are gitignored. Do not commit credentials or generated API secrets.
+
+## Submission checklist
+
+- [x] Section 1: architecture and operational answers in [`answers.md`](answers.md)
+- [x] Section 2a: Terraform in [`terraform/`](terraform)
+- [x] Section 2b: serialized Ansible role in [`ansible/`](ansible)
+- [x] Section 3: Python lag report in [`scripts/lag_report.py`](scripts/lag_report.py)
+- [x] Deferred scope and AI usage in [`NOTES.md`](NOTES.md)
+
+## Local validation
+
+- Terraform: `terraform validate` passes; live plan and no-change follow-up plan were tested.
+- Python: syntax, unreachable-broker, missing-group, and live lag JSON behavior were tested locally.
+- Ansible: all YAML files parsed successfully; native broker execution requires target inventory and host access.
