@@ -4,7 +4,8 @@ This repository contains Terraform for:
 
 - a Confluent Cloud environment with Schema Registry Essentials;
 - a single-zone Basic Kafka cluster;
-- an `orders.v1` topic with 6 partitions, a three-replica target, and `min.insync.replicas = 2`;
+- an `orders.v1` topic with 6 partitions, replication factor 3, and `min.insync.replicas = 2`;
+- a Terraform-managed topic manager for cluster operations;
 - one `orders-v1-producer` service account with WRITE permission only for `orders.v1`.
 
 ## Setup
@@ -12,13 +13,14 @@ This repository contains Terraform for:
 ```powershell
 cd terraform
 Copy-Item terraform.tfvars.example terraform.tfvars
-# Add Cloud API credentials and a Kafka cluster admin API key/secret.
+# Add only the Confluent Cloud API credentials.
 terraform init
+terraform validate
 terraform plan
 terraform apply
 ```
 
-Credential variables can also be supplied with `CONFLUENT_CLOUD_API_KEY`, `CONFLUENT_CLOUD_API_SECRET`, `TF_VAR_confluent_kafka_admin_api_key`, and `TF_VAR_confluent_kafka_admin_api_secret`.
+Credential variables can also be supplied through `CONFLUENT_CLOUD_API_KEY` and `CONFLUENT_CLOUD_API_SECRET`.
 
 ## Security
 

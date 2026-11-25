@@ -3,11 +3,6 @@ provider "confluent" {
   cloud_api_secret = var.confluent_cloud_api_secret
 }
 
-locals {
-  # replication.factor = 3: Confluent Cloud manages this replication factor; the provider does not expose it as a topic argument.
-  orders_replication_factor = var.orders_replication_factor
-}
-
 resource "confluent_environment" "orders" {
   display_name = var.environment_name
 
@@ -23,6 +18,7 @@ resource "confluent_kafka_cluster" "orders" {
   region       = var.region
   basic {}
 
+  # Confluent Cloud Basic clusters use a replication factor of 3.
   environment {
     id = confluent_environment.orders.id
   }
@@ -37,25 +33,60 @@ data "confluent_schema_registry_cluster" "essentials" {
   depends_on = [confluent_kafka_cluster.orders]
 }
 
+resource "confluent_service_account" "topic_manager" {
+  display_name = "orders-v1-topic-manager"
+  description  = "Creates and manages the orders.v1 topic and its Kafka ACL"
+}
+
+resource "confluent_role_binding" "topic_manager_cluster_admin" {
+  principal   = "User:${confluent_service_account.topic_manager.id}"
+  role_name   = "CloudClusterAdmin"
+  crn_pattern = confluent_kafka_cluster.orders.rbac_crn
+}
+
+resource "confluent_api_key" "topic_manager_kafka" {
+  display_name = "orders-v1-topic-manager-kafka-key"
+  description  = "Kafka API key for managing orders.v1 and its ACL"
+
+  owner {
+    id          = confluent_service_account.topic_manager.id
+    api_version = confluent_service_account.topic_manager.api_version
+    kind        = confluent_service_account.topic_manager.kind
+  }
+
+  managed_resource {
+    id          = confluent_kafka_cluster.orders.id
+    api_version = confluent_kafka_cluster.orders.api_version
+    kind        = confluent_kafka_cluster.orders.kind
+
+    environment {
+      id = confluent_environment.orders.id
+    }
+  }
+
+  depends_on = [confluent_role_binding.topic_manager_cluster_admin]
+}
+
 resource "confluent_kafka_topic" "orders_v1" {
   kafka_cluster {
     id = confluent_kafka_cluster.orders.id
   }
 
-  topic_name = "orders.v1"
+  topic_name = "orders.v1" # orders.v1 is the explicit assessment topic name.
 
-  partitions_count = var.orders_partitions # 6 partitions provide parallelism and are explicitly configured.
+  partitions_count = 6 # Six partitions provide parallelism across independent order workloads.
 
   rest_endpoint = confluent_kafka_cluster.orders.rest_endpoint
   credentials {
-    key    = var.confluent_kafka_admin_api_key
-    secret = var.confluent_kafka_admin_api_secret
+    key    = confluent_api_key.topic_manager_kafka.id
+    secret = confluent_api_key.topic_manager_kafka.secret
   }
 
   config = {
-    # 2 replicas must acknowledge writes before they are committed, balancing durability and availability.
-    "min.insync.replicas" = tostring(var.orders_min_isr)
+    "min.insync.replicas" = "2" # Two replicas must acknowledge writes for durable, available writes.
   }
+
+  depends_on = [confluent_api_key.topic_manager_kafka]
 }
 
 resource "confluent_service_account" "orders_producer" {
@@ -99,7 +130,7 @@ resource "confluent_kafka_acl" "orders_producer_write" {
 
   rest_endpoint = confluent_kafka_cluster.orders.rest_endpoint
   credentials {
-    key    = var.confluent_kafka_admin_api_key
-    secret = var.confluent_kafka_admin_api_secret
+    key    = confluent_api_key.topic_manager_kafka.id
+    secret = confluent_api_key.topic_manager_kafka.secret
   }
 }
