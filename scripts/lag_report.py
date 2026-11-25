@@ -1,19 +1,16 @@
 #!/usr/bin/env python3
+# Import argument parsing, JSON output, environment access, timeouts, and Kafka clients.
 import argparse
 import json
 import os
 import sys
 import time
 
-from confluent_kafka import (
-    Consumer,
-    ConsumerGroupTopicPartitions,
-    KafkaException,
-    TopicPartition,
-)
+from confluent_kafka import Consumer, ConsumerGroupTopicPartitions, KafkaException, TopicPartition
 from confluent_kafka.admin import AdminClient
 
 
+# Parse required CLI inputs or environment-variable equivalents.
 def parse_args():
     parser = argparse.ArgumentParser(description="Report consumer-group lag as JSON")
     parser.add_argument("--bootstrap", default=os.getenv("KAFKA_BOOTSTRAP_SERVERS"))
@@ -21,31 +18,35 @@ def parse_args():
     parser.add_argument("--api-secret", default=os.getenv("KAFKA_API_SECRET"))
     parser.add_argument("--group", required=True)
     args = parser.parse_args()
+
     missing = [name for name, value in (
         ("bootstrap", args.bootstrap), ("api-key", args.api_key),
-        ("api-secret", args.api_secret)) if not value]
+        ("api-secret", args.api_secret),) if not value]
     if missing:
         parser.error("missing required inputs: " + ", ".join(missing))
     return args
 
 
+# Retry broker operations three times with increasing one-second delays.
 def retry(operation):
     delay = 1
     for attempt in range(3):
         try:
             return operation()
-        except (KafkaException, TimeoutError, OSError) as error:
+        except (KafkaException, TimeoutError, OSError):
             if attempt == 2:
                 raise
             time.sleep(delay)
             delay *= 2
 
 
+# Verify that the requested consumer group exists before reading offsets.
 def group_exists(admin, group):
     result = admin.list_consumer_groups(request_timeout=10).result(timeout=10)
     return any(getattr(item, "group_id", None) == group for item in result.valid)
 
 
+# Retrieve committed offsets for each partition belonging to the consumer group.
 def get_offsets(admin, group):
     request = ConsumerGroupTopicPartitions(group)
     futures = admin.list_consumer_group_offsets([request], request_timeout=10)
@@ -53,27 +54,32 @@ def get_offsets(admin, group):
     return getattr(response, "topic_partitions", [])
 
 
+# Calculate lag from the committed offset and partition log-end offset.
 def build_report(admin, args, config):
     offsets = get_offsets(admin, args.group)
-    consumer = Consumer({**config, "group.id": args.group,
-                         "enable.auto.commit": False})
+    consumer = Consumer({**config, "group.id": args.group, "enable.auto.commit": False})
     report = []
     try:
         for item in offsets:
             if item.error:
                 continue
-            _, high = consumer.get_watermark_offsets(
+            _, log_end = consumer.get_watermark_offsets(
                 TopicPartition(item.topic, item.partition), timeout=10)
             current = item.offset if item.offset >= 0 else None
-            lag = max(high - current, 0) if current is not None else high
-            report.append({"topic": item.topic, "partition": item.partition,
-                           "current_offset": current,
-                           "log_end_offset": high, "lag": lag})
+            lag = max(log_end - current, 0) if current is not None else log_end
+            report.append({
+                "topic": item.topic,
+                "partition": item.partition,
+                "current_offset": current,
+                "log_end_offset": log_end,
+                "lag": lag,
+            })
     finally:
         consumer.close()
     return report
 
 
+# Configure authenticated Kafka access and execute all guarded operations.
 def main():
     args = parse_args()
     config = {
@@ -104,9 +110,11 @@ def main():
         print(f"Broker unreachable: {error}", file=sys.stderr)
         return 1
 
-    print(json.dumps(sorted(report, key=lambda row: (row["topic"], row["partition"]))))
+    report.sort(key=lambda row: (row["topic"], row["partition"]))
+    print(json.dumps(report))
     return 0
 
 
+# Run the script and translate the returned status into a process exit code.
 if __name__ == "__main__":
     sys.exit(main())
