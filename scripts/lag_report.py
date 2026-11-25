@@ -5,9 +5,13 @@ import os
 import sys
 import time
 
-from confluent_kafka import Consumer, ConsumerGroupTopicPartitions, TopicPartition
+from confluent_kafka import (
+    Consumer,
+    ConsumerGroupTopicPartitions,
+    KafkaException,
+    TopicPartition,
+)
 from confluent_kafka.admin import AdminClient
-from confluent_kafka import KafkaException
 
 
 def parse_args():
@@ -58,7 +62,7 @@ def build_report(admin, args, config):
         for item in offsets:
             if item.error:
                 continue
-            low, high = consumer.get_watermark_offsets(
+            _, high = consumer.get_watermark_offsets(
                 TopicPartition(item.topic, item.partition), timeout=10)
             current = item.offset if item.offset >= 0 else None
             lag = max(high - current, 0) if current is not None else high
@@ -79,6 +83,8 @@ def main():
         "sasl.username": args.api_key,
         "sasl.password": args.api_secret,
         "socket.timeout.ms": "10000",
+        "log_level": 0,
+        "client.id": "lag-report",
     }
     admin = AdminClient(config)
 
